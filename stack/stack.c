@@ -39,7 +39,7 @@ void stack_push(stack_t* stack, int item)
     if (stack->count == stack->capacity)
     {
         stack->capacity *= 2;
-        stack->items = realloc(stack->items, stack->capacity);
+        stack->items = realloc(stack->items, stack->capacity * sizeof(int));
     }
     stack->items[stack->count++] = item;
 }
