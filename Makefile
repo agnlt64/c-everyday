@@ -8,16 +8,19 @@ all: $(SUBDIRS)
 # Rule for each subdirectory
 $(SUBDIRS):
 	@echo "Building in $@"
-	@$(MAKE) -f $(CURDIR)/Makefile build-in-dir DIR=$@
+	-@$(MAKE) -f $(CURDIR)/Makefile build-in-dir DIR=$@
 
 # Build in specific directory
 .PHONY: build-in-dir
 build-in-dir:
 	@if ls $(DIR)*.c >/dev/null 2>&1; then \
-		$(CC) $(DIR)*.c -o $(DIR)$(notdir $(DIR:%/=%)); \
-		echo "Created executable: $(DIR)$(notdir $(DIR:%/=%))" ; \
+		if $(CC) $(DIR)*.c -o $(DIR)$(notdir $(DIR:%/=%)); then \
+			echo "Created executable: $(DIR)$(notdir $(DIR:%/=%))"; \
+		else \
+			echo "Failed to create executable in $(DIR)"; \
+		fi \
 	else \
-		echo "No C files found in $(DIR)" ; \
+		echo "No C files found in $(DIR)"; \
 	fi
 
 # Clean target
