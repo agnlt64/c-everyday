@@ -1,3 +1,8 @@
+# git fuckery to ignore files without extensions
+*
+!*.*
+!*/
+
 *.exe
 algos.md
 .vscode/
