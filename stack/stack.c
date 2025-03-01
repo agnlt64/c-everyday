@@ -8,24 +8,24 @@ typedef struct stack {
     size_t count;
     size_t capacity;
     int* items;
-} stack_t;
+} stack_T;
 
-stack_t* stack_alloc()
+stack_T* stack_alloc()
 {
-    stack_t* stack = malloc(sizeof(stack_t));
+    stack_T* stack = malloc(sizeof(stack_T));
     stack->count = 0;
     stack->capacity = STACK_INIT_CAP;
     stack->items = malloc(sizeof(int) * stack->capacity);
     return stack;
 }
 
-void stack_free(stack_t* stack)
+void stack_free(stack_T* stack)
 {
     free(stack->items);
     free(stack);
 }
 
-void stack_print(stack_t* stack)
+void stack_print(stack_T* stack)
 {
     for (size_t i = 0; i < stack->count; i++)
     {
@@ -34,7 +34,7 @@ void stack_print(stack_t* stack)
     printf("\n");
 }
 
-void stack_push(stack_t* stack, int item)
+void stack_push(stack_T* stack, int item)
 {
     if (stack->count == stack->capacity)
     {
@@ -44,12 +44,12 @@ void stack_push(stack_t* stack, int item)
     stack->items[stack->count++] = item;
 }
 
-bool stack_is_empty(stack_t* stack)
+bool stack_is_empty(stack_T* stack)
 {
     return stack->count == 0;
 }
 
-int stack_pop(stack_t* stack)
+int stack_pop(stack_T* stack)
 {
     if (stack_is_empty(stack))
     {
@@ -61,7 +61,7 @@ int stack_pop(stack_t* stack)
 
 int main()
 {
-    stack_t* stack = stack_alloc();
+    stack_T* stack = stack_alloc();
 
     for (size_t i = 0; i < 10; i++) stack_push(stack, i);
     stack_print(stack);
