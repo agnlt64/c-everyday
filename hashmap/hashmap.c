@@ -24,7 +24,7 @@ uint64_t hash(hashmap_t* map, const char* str)
 {
     uint64_t hash = 5381;
     int c;
-    while (c = *str++) hash = 33*hash + c;
+    while ((c = *str++)) hash = 33*hash + c;
     return hash % map->capacity;
 }
 
