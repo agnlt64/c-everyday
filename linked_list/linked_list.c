@@ -137,7 +137,7 @@ int main()
     list_t* list = list_alloc();
 
     for (size_t i = 0; i < 10; i++) list_add(list, i);
-    printf("Size of the list: %d\n", list->count);
+    printf("Size of the list: %zu\n", list->count);
     list_print(list);
 
     printf("Removing 1: \n");
