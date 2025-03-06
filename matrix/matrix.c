@@ -22,7 +22,7 @@ matrix_t* mat_alloc(size_t rows, size_t cols)
     matrix_t* mat = malloc(sizeof(matrix_t));
     mat->rows = rows;
     mat->cols = cols;
-    mat->items = malloc(sizeof(int) * mat->cols * mat->rows);
+    mat->items = calloc(mat->rows * mat->cols, sizeof(int));
     return mat;
 }
 
