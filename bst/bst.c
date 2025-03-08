@@ -1,11 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-typedef struct node_t {
-    int value;
-    struct node_t* left;
-    struct node_t* right;
-} node_t;
+#define QUEUE_IMPLEMENTATION
+#include "queue.h"
 
 node_t* node_alloc(int value)
 {
@@ -28,7 +25,7 @@ void node_free(node_t* node)
 node_t* node_insert(node_t* root, int value)
 {
     if (root == NULL)
-    return node_alloc(value);
+        return node_alloc(value);
 
     // don't add the same value twice
     if (value < root->value)
@@ -86,6 +83,54 @@ int height(node_t* root)
     return (left > right ? left : right) + 1; 
 }
 
+void inorder_traversal(node_t* root)
+{
+    if (root)
+    {
+        inorder_traversal(root->left);
+        printf("%d ", root->value);
+        inorder_traversal(root->right);
+    }
+}
+
+void preorder_traversal(node_t* root)
+{
+    if (root)
+    {
+        printf("%d ", root->value);
+        preorder_traversal(root->left);
+        preorder_traversal(root->right);
+    }
+}
+
+void bfs(node_t* root)
+{
+    if (!root) return;
+
+    queue_t* q = queue_alloc();
+
+    queue_enqueue(q, root);
+
+    while (!queue_is_empty(q))
+    {
+        node_t* current = queue_dequeue(q);
+        printf("%d ", current->value);
+        
+        if (current->left) queue_enqueue(q, current->left);
+        if (current->right) queue_enqueue(q, current->right);
+    }
+}
+
+void postorder_traversal(node_t* root)
+{
+    if (root)
+    {
+        postorder_traversal(root->left);
+        postorder_traversal(root->right);
+        printf("%d ", root->value);
+    }
+}
+
 int main()
 {
     node_t* root = NULL;
@@ -112,6 +157,22 @@ int main()
 
     printf("Height:\n");
     printf("%d\n", height(root));
+
+    printf("BFS:\n");
+    bfs(root);
+    printf("\n");
+
+    printf("Postorder traversal:\n");
+    postorder_traversal(root);
+    printf("\n");
+
+    printf("Preorder traversal:\n");
+    preorder_traversal(root);
+    printf("\n");
+
+    printf("Inorder traversal:\n");
+    inorder_traversal(root);
+    printf("\n");
 
     node_free(root);
     return 0;
