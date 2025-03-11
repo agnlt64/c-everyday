@@ -75,6 +75,60 @@ matrix_t* mat_mul(matrix_t* A, matrix_t* B)
     return res;
 }
 
+void mat_mul_in_place(matrix_t* A, matrix_t* B)
+{
+    if (!is_square(A) || !is_square(B) || A->rows != B->rows)
+    {
+        fprintf(stderr, "Error: Wrong dimensions!\n");
+        exit(1);
+    }
+
+    size_t n = A->rows;
+    int temp[n][n];
+
+    mat_for(A,
+        temp[i][j] = 0;
+        for (size_t k = 0; k < n; k++)
+            temp[i][j] += mat_at(A, k, j) * mat_at(B, i, k);
+    );
+
+    mat_for(A,
+        mat_at(A, i, j) = temp[i][j];
+    );
+}
+
+matrix_t* mat_identity(size_t size)
+{
+    matrix_t* res = mat_alloc(size, size);
+    mat_for(res,
+        if (i == j) mat_at(res, i, j) = 1;
+        else mat_at(res, i, j) = 0;
+    );
+    return res;
+}
+
+matrix_t* mat_exp(matrix_t* mat, int n)
+{
+    if (n < 0)
+    {
+        fprintf(stderr, "Exponent must be >= 0\n");
+        exit(1);
+    }
+    matrix_t* res = mat_identity(mat->cols);
+
+    if (n == 0)
+        return res;
+
+    while (n)
+    {
+        if (n & 1)
+            mat_mul_in_place(res, mat);
+        mat_mul_in_place(mat, mat);
+        n >>= 1;
+    }
+    return res;
+}
+
 matrix_t* mat_add(matrix_t* A, matrix_t* B)
 {
     if (A->cols != B->cols || A->rows != B->rows)
@@ -92,42 +146,65 @@ matrix_t* mat_add(matrix_t* A, matrix_t* B)
 
 int main()
 {
-    int arr1[] = {
-        2, 9,
-        5, 0,
-        -1, 3
-    };
+    // int arr1[] = {
+    //     2, 9,
+    //     5, 0,
+    //     -1, 3
+    // };
     int arr2[] = {
         6, -6,
         3, 0
     };
-    matrix_t* A = mat_from_array(arr1, 3, 2);
+    int arr3[] = {
+        4, 3,
+        1, 2
+    };
+    // matrix_t* A = mat_from_array(arr1, 3, 2);
     matrix_t* B = mat_from_array(arr2, 2, 2);
+    matrix_t* C = mat_from_array(arr3, 2, 2);
 
-    printf("Matrix A:\n");
-    mat_print(A);
-    printf("Matrix B (is square: %d):\n", is_square(B));
+    printf("Matrix B: (is square? %d)\n", is_square(B));
+    mat_print(B);
+    printf("Matrix C: (is square? %d)\n", is_square(C));
+    mat_print(C);
+
+    printf("B x C (in place):\n");
+    mat_mul_in_place(B, C);
     mat_print(B);
 
-    printf("-----------\n");
-    printf("A x B:\n");
-    matrix_t* mul = mat_mul(A, B);
-    mat_print(mul);
+    printf("C^3:\n");
+    matrix_t* res = mat_exp(C, 3);
+    mat_print(res);
+    mat_free(res);
 
-    printf("-----------\n");
-    printf("A + A:\n");
-    matrix_t* add = mat_add(A, A);
-    mat_print(add);
+    // printf("Matrix A:\n");
+    // mat_print(A);
 
-    printf("-----------\n");
-    printf("2A:\n");
-    mat_scalar(A, 2);
-    mat_print(A);
+    // printf("-----------\n");
+    // printf("A x B:\n");
+    // matrix_t* mul = mat_mul(A, B);
+    // mat_print(mul);
 
-    mat_free(A);
+    // printf("-----------\n");
+    // printf("A + A:\n");
+    // matrix_t* add = mat_add(A, A);
+    // mat_print(add);
+
+    // printf("-----------\n");
+    // printf("2A:\n");
+    // mat_scalar(A, 2);
+    // mat_print(A);
+
+    // printf("-----------\n");
+    // printf("A^3:\n");
+    // mat_exp(A, 3);
+    // mat_print(A);
+
+    // mat_free(A);
     mat_free(B);
-    mat_free(mul);
-    mat_free(add);
+    mat_free(C);
+    // mat_free(mul);
+    // mat_free(add);
 
     return 0;
 }
