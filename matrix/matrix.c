@@ -77,7 +77,7 @@ matrix_t* mat_mul(matrix_t* A, matrix_t* B)
 
 void mat_mul_in_place(matrix_t* A, matrix_t* B)
 {
-    if (!is_square(A) || !is_square(B) || A->rows != B->rows)
+    if (A->rows != B->rows || A->cols != B->cols)
     {
         fprintf(stderr, "Error: Wrong dimensions!\n");
         exit(1);
