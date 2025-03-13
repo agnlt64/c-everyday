@@ -228,10 +228,10 @@ int main()
     ugraph_dijkstra(g, 'E', 'H');
 
     printf("BFS:\n");
-    ugraph_bsf(g, 0);
+    ugraph_bsf(g, 'A');
 
     printf("DFS:\n");
-    ugraph_dfs(g, 0);
+    ugraph_dfs(g, 'A');
 
     ugraph_free(g);
     return 0;
