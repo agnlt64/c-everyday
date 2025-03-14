@@ -26,7 +26,7 @@ void heapify(int* arr, int n, int i)
     }
 }
 
-void heapsort(int* arr, int n)
+void heap_sort(int* arr, int n)
 {
     for (int i = n / 2 - 1; i >= 0; i--)
     {
@@ -48,7 +48,7 @@ int main()
     srand(time(NULL));
     for (size_t i = 0; i < N; i++) arr[i] = rand() % 1000;
 
-    heapsort(arr, N);
+    heap_sort(arr, N);
     for (size_t i = 0; i < N; i++) printf("%d ", arr[i]);
     printf("\n");
     

@@ -83,7 +83,7 @@ void queue_print(queue_t* queue)
 {
     for (size_t i = queue->front; i <= queue->rear; i++)
     {
-        printf("%d ", queue->items[i]);
+        printf("%d ", queue->items[i]->value);
     }
     printf("\n");
 }
