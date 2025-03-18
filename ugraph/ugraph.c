@@ -126,7 +126,7 @@ void ugraph_free(ugraph_t* g)
     free(g);
 }
 
-int ugraph_dijkstra_min(int* dist, bool* visited, int n)
+int ugraph_min(int* dist, bool* visited, int n)
 {
     int min = INT_MAX;
     int node = -1;
@@ -164,7 +164,7 @@ void ugraph_dijkstra(ugraph_t* g, char start, char end)
 
     for (size_t count = 0; count < n; count++)
     {
-        int u = ugraph_dijkstra_min(dist, visited, n);
+        int u = ugraph_min(dist, visited, n);
         if (u == -1 || u == end) break;
         visited[u] = true;
 
@@ -201,6 +201,79 @@ void ugraph_dijkstra(ugraph_t* g, char start, char end)
     printf("Cost: %d\n", dist[end]);
 }
 
+int ugraph_heuristic(int a, int b)
+{
+    return abs(a - b);
+}
+
+void ugraph_astar(ugraph_t* g, char start, char end)
+{
+    size_t size = g->size;
+    int dist[size];
+    int prev[size];
+    int f_score[size];
+    bool visited[size];
+    
+    char orig_start = start;
+    char orig_end = end;
+
+    start -= 65;
+    end -= 65;
+
+    for (size_t i = 0; i < size; i++)
+    {
+        dist[i] = INT_MAX;
+        f_score[i] = INT_MAX;
+        prev[i] = -1;
+        visited[i] = false;
+    }
+
+    dist[start] = 0;
+    f_score[start] = ugraph_heuristic(start, end);
+
+    for (size_t count = 0; count < size - 1; count++)
+    {
+        int u = ugraph_min(f_score, visited, size);
+        if (u == -1 || u == end) break;
+        visited[u] = true;
+
+        for (size_t v = 0; v < size; v++)
+        {
+            if (!visited[v]
+                && ugraph_has_edge(g, u + 65, v + 65)
+                && dist[u] != INT_MAX
+            )
+            {
+                int t_score = dist[u] + mat_at(g->adj, u, v);
+                if (t_score < dist[v])
+                {
+                    dist[v] = t_score;
+                    f_score[v] = dist[v] + ugraph_heuristic(v, end);
+                    prev[v] = u;
+                }
+            }
+        }
+    }
+
+    if (dist[end] == INT_MAX)
+    {
+        printf("No path from %c to %c\n", orig_start, orig_end);
+        return;
+    }
+
+    printf("Shortest path from %c to %c:\n", orig_start, orig_end);
+    int path[size];
+    int count = 0;
+
+    for (int at = end; at != -1; at = prev[at])
+        path[count++] = at;
+
+    for (int i = count - 1; i >= 0; i--)
+        printf("%c%s", path[i] + 65, i == 0 ? "\n" : " -> ");
+
+    printf("Cost: %d\n", dist[end]);
+}
+
 int main()
 {
     ugraph_t* g = ugraph_alloc(8);
@@ -221,11 +294,19 @@ int main()
 
     ugraph_print(g);
 
+    printf("------Dijkstra------\n");
     ugraph_dijkstra(g, 'A', 'C');
     ugraph_dijkstra(g, 'A', 'B');
     ugraph_dijkstra(g, 'F', 'B');
     ugraph_dijkstra(g, 'H', 'A');
     ugraph_dijkstra(g, 'E', 'H');
+
+    printf("------A*------\n");
+    ugraph_astar(g, 'A', 'C');
+    ugraph_astar(g, 'A', 'B');
+    ugraph_astar(g, 'F', 'B');
+    ugraph_astar(g, 'H', 'A');
+    ugraph_astar(g, 'E', 'H');
 
     printf("BFS:\n");
     ugraph_bsf(g, 'A');
