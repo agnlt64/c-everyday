@@ -37,7 +37,7 @@ void kmp(const char* text, const char* pattern)
 
         if (q == pat_len)
         {
-            printf("pattern appears in position %d\n", i - pat_len + 1);
+            printf("pattern appears in position %zu\n", i - pat_len + 1);
             q = pref[q - 1];
         }
     }
