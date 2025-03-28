@@ -36,8 +36,8 @@ int karatsuba(int a, int b)
 
 int main()
 {
-    int a = 884845;
-    int b = 12453;
+    int a = 2527;
+    int b = 4372;
     printf("%d x %d = %d\n", a, b, karatsuba(a, b));
 
     return 0;
