@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <math.h>
+#include <limits.h>
 
 void total_cost(matrix_t* cost, bool* visited, int curr_pos, int n, int count, int cost_so_far, int* ans)
 {
