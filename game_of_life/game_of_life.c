@@ -9,6 +9,8 @@
 #include <unistd.h>
 #endif
 
+#define WIDTH 450
+#define HEIGHT 250
 typedef struct board {
     int width;
     int height;
@@ -19,8 +21,8 @@ typedef struct board {
 board_t* board_alloc()
 {
     board_t* b = malloc(sizeof(board_t));
-    b->width = 50;
-    b->height = 50;
+    b->width = WIDTH;
+    b->height = HEIGHT;
     b->world = malloc(b->width * b->height);
     b->temp = malloc(b->width * b->height);
     
@@ -85,16 +87,16 @@ int main()
 
     srand(time(NULL));
     for (int i = b->height * b->width - 1; i >= 0; i--)
-        b->world[i] = rand() % 10 == 0 ? 1 : 0;
+        b->world[i] = rand() % 15 == 0 ? 1 : 0;
 
-    for (size_t i = 0; i < 1000; i++)
+    for (size_t i = 0; i < 10000; i++)
     {
         board_print(b);
         board_evolve(b);
         #ifdef _WIN32
         Sleep(500);
         #else
-        usleep(500000);
+        usleep(100000);
         #endif
     }
 
