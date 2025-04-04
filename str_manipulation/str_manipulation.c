@@ -71,6 +71,36 @@ char* strcpy_pro(char* dest, char* src)
     return s;
 }
 
+int strcmp_noob(const char* s1, const char* s2)
+{
+    int m = strlen_pro(s1);
+    int n = strlen_pro(s2);
+
+    if (m != n)
+        return 1;
+
+    for (size_t i = 0; i < n; i++)
+    {
+        if (s1[i] != s2[i])
+            return 1;
+    }
+    return 0;
+}
+
+int strcmp_pro(const char* s1, const char* s2)
+{
+    const char* p1 = s1;
+    const char* p2 = s2;
+
+    while (*p1)
+    {
+        if (*p1++ != *p2++)
+            return 1;
+    }
+    if (*p2 != '\0') return 1;
+    return 0;
+}
+
 int main()
 {
     char s[] = "hello world";
@@ -85,6 +115,12 @@ int main()
 
     printf("%s\n", strcpy_noob(buf, "windows"));
     printf("%s\n", strcpy_pro(buf, "linux"));
+
+    printf("%d\n", strcmp_noob("windows", "linux"));
+    printf("%d\n", strcmp_pro("windows", "linux"));
+
+    printf("%d\n", strcmp_noob("hello", "hello"));
+    printf("%d\n", strcmp_pro("hello", "hello"));
 
     return 0;
 }
