@@ -11,3 +11,12 @@ For example, to test the [stack](./stack/) implementation, run:
 ```console
 $ ./stack/stack
 ```
+
+# Building programs that use Raylib
+You need to have [raylib](https://github.com/raysan5/raylib) installed on your system, or you can put the library files into a folder called `lib`, it will be ignoerd by `.gitignore`. Then you can compile with the following command (it's not in the `Makefile`):
+```console
+# this is to build the tictactoe app
+$ cd tictactoe
+$ gcc ./tictactoe.c -o tictactoe -L./lib -lraylib # don't use -L if you have Raylib installed system-wide
+```
+On Windows don't forget to link with `gdi32` and `winmm`.
