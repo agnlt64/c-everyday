@@ -7,3 +7,6 @@
 *.exe
 algos.md
 .vscode/
+
+# differents DLLs depending on the platform
+lib/
