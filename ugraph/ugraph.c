@@ -105,7 +105,7 @@ void ugraph_dfs_inner(ugraph_t* g, int node, bool* visited)
     printf("%c ", node + 65);
     for (size_t i = 0; i < g->size; i++)
     {
-        if (mat_at(g->adj, node , i) && !visited[i])
+        if (mat_at(g->adj, node, i) && !visited[i])
         {
             ugraph_dfs_inner(g, i, visited);
         }
@@ -213,7 +213,7 @@ void ugraph_astar(ugraph_t* g, char start, char end)
     int prev[size];
     int f_score[size];
     bool visited[size];
-    
+
     char orig_start = start;
     char orig_end = end;
 
@@ -274,6 +274,79 @@ void ugraph_astar(ugraph_t* g, char start, char end)
     printf("Cost: %d\n", dist[end]);
 }
 
+void ugraph_bellman_ford(ugraph_t* g, char start, char end)
+{
+    size_t size = g->size;
+    int dist[size];
+    int prev[size];
+
+    char orig_start = start;
+    char orig_end = end;
+
+    start -= 65;
+    end -= 65;
+
+    for (size_t i = 0; i < size; i++)
+    {
+        dist[i] = INT_MAX;
+        prev[i] = -1;
+    }
+    dist[start] = 0;
+
+    for (size_t k = 0; k < size - 1; k++)
+    {
+        for (size_t i = 0; i < size; i++)
+        {
+            for (size_t j = 0; j < size; j++)
+            {
+                int w = mat_at(g->adj, i, j);
+                if (w != 0 && w != INT_MAX)
+                {
+                    if (dist[i] != INT_MAX && dist[i] + w < dist[j])
+                    {
+                        dist[j] = dist[i] + w;
+                        prev[j] = i;
+                    }
+                }
+            }
+        }
+    }
+
+    for (size_t i = 0; i < size; i++)
+    {
+        for (size_t j = 0; j < size; j++)
+        {
+            int w = mat_at(g->adj, i, j);
+            if (w != 0 && w != INT_MAX)
+            {
+                if (dist[i] != INT_MAX && dist[i] + w < dist[j])
+                {
+                    printf("graph contains a negative weight cycle\n");
+                    return;
+                }
+            }
+        }
+    }
+
+    if (dist[end] == INT_MAX)
+    {
+        printf("no path from %c to %c exists\n", orig_start, orig_end);
+        return;
+    }
+
+    printf("shortest path from %c to %c:\n", orig_start, orig_end);
+    int path[size];
+    int count = 0;
+    for (int at = end; at != -1; at = prev[at])
+        path[count++] = at;
+
+    for (int i = count - 1; i >= 0; i--)
+        printf("%c%s", path[i] + 65, i == 0 ? "\n" : " -> ");
+
+    printf("Cost: %d\n", dist[end]);
+}
+
+
 int main()
 {
     ugraph_t* g = ugraph_alloc(8);
@@ -307,6 +380,13 @@ int main()
     ugraph_astar(g, 'F', 'B');
     ugraph_astar(g, 'H', 'A');
     ugraph_astar(g, 'E', 'H');
+
+    printf("------Bellman-Ford------\n");
+    ugraph_bellman_ford(g, 'A', 'C');
+    ugraph_bellman_ford(g, 'A', 'B');
+    ugraph_bellman_ford(g, 'F', 'B');
+    ugraph_bellman_ford(g, 'H', 'A');
+    ugraph_bellman_ford(g, 'E', 'H');
 
     printf("BFS:\n");
     ugraph_bsf(g, 'A');
