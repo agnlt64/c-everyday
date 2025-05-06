@@ -10,3 +10,6 @@ algos.md
 
 # differents DLLs depending on the platform
 lib/
+
+# me doing tests with shaders
+shaders/

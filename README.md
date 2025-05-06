@@ -20,3 +20,10 @@ $ cd tictactoe
 $ gcc ./tictactoe.c -o tictactoe -L./lib -lraylib # don't use -L if you have Raylib installed system-wide
 ```
 On Windows don't forget to link with `gdi32` and `winmm`.
+
+# Building game mechanics
+You still need Raylib, but you will have to build each project by hand because I'm too lazy to write a custom Makefile. To run the shooting mechanic, use:
+```console
+$ cd game_mechanics/shooting
+$ gcc shooting.c -o shooting -lraylib # or -L../lib if you don't have Raylib system-wide
+```
