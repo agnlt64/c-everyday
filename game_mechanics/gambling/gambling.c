@@ -19,6 +19,9 @@ typedef struct game_context {
     float angle;
     int winning_number;
     bool spinning;
+    int selected_number;
+    int balance;
+    int bet_amount;
 } game_context;
 
 void init_sectors(sector_t* sectors)
@@ -59,16 +62,65 @@ void init_game(game_context* gc)
     gc->winning_number = -1;
     gc->angle = 0;
     gc->spinning = false;
+    gc->bet_amount = 0;
+    gc->balance = 100000;
+    gc->selected_number = -1;
+}
+
+int get_clicked_sector(game_context* gc, Vector2 center)
+{
+    Vector2 mouse_pos = GetMousePosition();
+    float dx = mouse_pos.x - center.x;
+    float dy = mouse_pos.y - center.y;
+    float distance = sqrtf(dx * dx + dy * dy);
+
+    if (distance <= RADIUS)
+    {
+        float angle = atan2f(dy, dx);
+        angle = fmodf(angle + PI/2 - gc->angle * DEG2RAD, 2 * PI);
+        if (angle < 0) angle += 2 * PI;
+        angle -= PI/2;
+
+        int sector = (int)(angle * NUM_SECTORS / (2 * PI)) % NUM_SECTORS;
+        return gc->sectors[sector].number;
+    }
+    return -1;
 }
 
 void handle_inputs(game_context* gc)
 {
+    if (!gc->spinning)
+    {
+        Vector2 center = {
+            WIDTH / 2.0f,
+            HEIGHT / 2.0f,
+        };
+
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+            gc->selected_number = get_clicked_sector(gc, center);
+
+        int increment = 500;
+        if (IsKeyDown(KEY_LEFT))
+            gc->bet_amount = gc->bet_amount > increment ? gc->bet_amount - increment : 0;
+        if (IsKeyDown(KEY_RIGHT))
+            gc->bet_amount = gc->bet_amount < gc->balance ? gc->bet_amount + increment : gc->balance;
+    }
+
     if (IsKeyPressed(KEY_SPACE) && !gc->spinning)
     {
         gc->speed = GetRandomValue(400, 700);
         gc->winning_number = -1;
         gc->spinning = true;
     }
+}
+
+void draw_slider(int amount)
+{
+    DrawRectangle(WIDTH/2 - 200, HEIGHT - 100, 400, 30, LIGHTGRAY);
+    DrawRectangle(WIDTH/2 - 200, HEIGHT - 100, (amount - 10) * 400 / 99990, 30, DARKGRAY);
+    const char* text = TextFormat("Amount: %d", amount);
+    int font_size = 20;
+    DrawText(text, WIDTH / 2 - MeasureText(text, font_size) / 2, HEIGHT - 140, font_size, BLACK);
 }
 
 void update_game(game_context* gc)
@@ -92,6 +144,16 @@ void update_game(game_context* gc)
             int sector = (int)((270.0f - norm + 0.5 * sector_angle) / sector_angle) % NUM_SECTORS;
             if (sector < 0) sector += NUM_SECTORS;
             gc->winning_number = gc->sectors[sector].number;
+
+            if (gc->selected_number != -1)
+            {
+                if (gc->selected_number != gc->winning_number)
+                    gc->balance = fmax(gc->balance - gc->bet_amount, 0);
+                else
+                    gc->balance += gc->bet_amount * NUM_SECTORS;
+                gc->selected_number = -1;
+                draw_slider(gc->balance);
+            }
         }
     }
 }
@@ -139,7 +201,23 @@ void draw_hud(game_context gc)
         const char* text = TextFormat("Winning number: %d", gc.winning_number);
         DrawText(text, WIDTH / 2 - MeasureText(text, font_size) / 2, 30, font_size, GOLD);
     }
+
+    int pad_x = 20;
+    DrawText(TextFormat("Balance: %d$", gc.balance), pad_x, font_size, font_size, GOLD);
+
+    if (gc.selected_number != -1)
+        DrawText(TextFormat("Betting on: %d", gc.selected_number), pad_x, font_size * 2, font_size, BLACK);
+
+    if (gc.winning_number != -1)
+    {
+        if (gc.winning_number != gc.selected_number)
+            DrawText("You lost!", pad_x, font_size * 3, font_size, RED);
+        else
+            DrawText("You won!", pad_x, font_size * 3, font_size, GREEN);
+    }
+
     DrawText("Press SPACE to start", 20, HEIGHT - 40, font_size, BLACK);
+    DrawText("Use arrow keys to bet", WIDTH - 400, HEIGHT - 40, font_size, BLACK);
 }
 
 void draw_game(game_context gc)
@@ -157,6 +235,7 @@ void draw_game(game_context gc)
 
         draw_roulette_triangle(gc, center, i, start_angle, end_angle);
         draw_selector(gc, center);
+        draw_slider(gc.bet_amount);
         draw_hud(gc);
     }
 }
