@@ -1,4 +1,5 @@
 #include "include/raylib.h"
+#include "include/raymath.h"
 #include <math.h>
 #include <stdlib.h>
 
@@ -8,6 +9,8 @@
 #define SEGMENTS 40
 #define NB_CIRCLES 7
 #define CIRCLE_RADIUS 40
+
+#define GRAVITY 98
 
 typedef struct line {
     Vector2 p1;
@@ -70,18 +73,36 @@ void draw_arc(circle_t* circle, Vector2 center, Color color)
     }
 }
 
-void draw_circles(circle_t* circles, Vector2 center)
+void draw_circles(circle_t* circles, Vector2 center, float dt)
 {
     for (size_t i = 0; i < NB_CIRCLES; i++)
     {
+        float rotation = circles[i].start_angle;
+        rotation += circles[i].speed * dt;
+        circles[i].start_angle = rotation;
+        circles[i].end_angle = rotation + 320;
         draw_arc(&circles[i], center, WHITE);
     }
+}
+
+void update_ball(ball_t* ball, float dt)
+{
+    ball->velocity.y += GRAVITY * dt;
+    ball->pos.x += ball->velocity.x * dt;
+    ball->pos.y += ball->velocity.y * dt;
 }
 
 float dist_to_center(ball_t ball, Vector2 center)
 {
     return (ball.pos.x - center.x) * (ball.pos.x - center.x) +
            (ball.pos.y - center.y) * (ball.pos.y - center.y);
+}
+
+Vector2 get_normal(line_t line)
+{
+    Vector2 line_dir = Vector2Subtract(line.p2, line.p1);
+    Vector2 normal = (Vector2){-line_dir.y, line_dir.x};
+    return Vector2Normalize(normal);
 }
 
 void update_circles(circle_t* circles, ball_t* ball, Vector2 center, int* num_circles)
@@ -92,6 +113,25 @@ void update_circles(circle_t* circles, ball_t* ball, Vector2 center, int* num_ci
         for (size_t i = 0; i < *num_circles - 1; i++)
             circles[i] = circles[i + 1];
         (*num_circles)--;
+    }
+
+    for (size_t i = 0; i < *num_circles; i++)
+    {
+        circle_t circle = circles[i];
+        for (size_t j = 0; j < SEGMENTS; j++)
+        {
+            line_t line = circle.lines[j];
+            if (CheckCollisionCircleLine(ball->pos, ball->radius, line.p1, line.p2))
+            {
+                Vector2 normal = get_normal(line);
+                ball->velocity = Vector2Reflect(ball->velocity, normal);
+
+                Vector2 offset = Vector2Scale(normal, 0.5f);
+                ball->pos = Vector2Add(ball->pos, offset);
+
+                return;
+            }
+        }
     }
 }
 
@@ -118,7 +158,10 @@ int main()
         ClearBackground(BLACK);
 
         DrawCircleV(ball.pos, ball.radius, WHITE);
-        draw_circles(circles, center);
+
+        float dt = GetFrameTime();
+        draw_circles(circles, center, dt);
+        update_ball(&ball, dt);
 
         if (num_circles > 0)
             update_circles(circles, &ball, center, &num_circles);
