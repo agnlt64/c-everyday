@@ -4,14 +4,24 @@
 #define WIDTH 1600
 #define HEIGHT 900
 
+#define DEFAULT_AK_VIEWMODEL load_cam((Vector3){-0.9, 1.95, 1.6}, (Vector3){-1, 1.95, -0.2})
+
+typedef struct animator {
+    float anim_time;
+    float duration;
+} animator_t;
+
 typedef struct weapon {
     Model model;
     Camera cam;
 
     Vector3 scale;
     Vector3 rotation_axis;
-    float rotation_angle;
     Vector3 fixed_pos;
+
+    bool is_spawning;
+    bool is_reloading;
+    animator_t animator;
 } weapon_t;
 
 Camera load_cam(Vector3 position, Vector3 target)
@@ -39,9 +49,46 @@ void draw_weapon(weapon_t weapon)
 {
     BeginMode3D(weapon.cam);
 
-    DrawModelEx(weapon.model, weapon.fixed_pos, weapon.rotation_axis, weapon.rotation_angle, weapon.scale, WHITE);
+    DrawModelEx(weapon.model, weapon.fixed_pos, weapon.rotation_axis, -weapon.rotation_axis.z, weapon.scale, WHITE);
 
     EndMode3D();
+}
+
+void scale_weapon(weapon_t* weapon, float scale)
+{
+    weapon->scale = (Vector3){scale, scale, scale};
+}
+
+void spawn_weapon(weapon_t* weapon)
+{
+    weapon->animator.anim_time += GetFrameTime();
+    float t = weapon->animator.anim_time / weapon->animator.duration;
+    t = 1 - powf(1 - t, 3);
+
+    if (t >= 1.0f)
+    {
+        t = 1.0f;
+        weapon->is_spawning = false;
+    }
+
+    weapon->cam.target.y = Lerp(3.5f, 1.95f, t);
+}
+
+void reload_weapon(weapon_t* weapon)
+{
+    weapon->animator.anim_time += GetFrameTime();
+    float t = weapon->animator.anim_time / weapon->animator.duration;
+    t = (1 - powf(1 - t, 3)) / 2;
+
+    if (t >= 1.0f)
+    {
+        t = 1.0f;
+        weapon->is_reloading = false;
+        weapon->rotation_axis = Vector3Zero();
+    }
+    float angle = sinf(t * PI) * 40.0f;
+
+    weapon->rotation_axis = (Vector3){0, 0, angle};
 }
 
 void free_weapon(weapon_t weapon)
@@ -55,19 +102,18 @@ int main()
     SetTargetFPS(60);
     
     Camera main_cam = load_cam((Vector3){0, 2, 4}, (Vector3){0, 2, 3});
-    Camera ak_cam = load_cam(Vector3Zero(), (Vector3){0, 0, 1});
 
     weapon_t ak47 = {0};
     ak47.model = LoadModel("./assets/ak47.glb");
-    ak47.cam = ak_cam;
-    ak47.scale = (Vector3){0.06, 0.06, 0.06};
-    ak47.rotation_axis = (Vector3){0, 1, 1};
-    ak47.rotation_angle = 180;
-    ak47.fixed_pos = (Vector3){-0.2, -0.2, 0.5};
+    scale_weapon(&ak47, 0.002);
+    ak47.cam = DEFAULT_AK_VIEWMODEL;
+    ak47.rotation_axis = (Vector3){0, 0, 1};
+    ak47.fixed_pos = (Vector3){0, 0.7, 0};
+
+    DisableCursor();
 
     while (!WindowShouldClose())
     {
-        HideCursor();
         UpdateCamera(&main_cam, CAMERA_FIRST_PERSON);
 
         BeginDrawing();
@@ -75,6 +121,25 @@ int main()
 
         draw_floor(main_cam);
         draw_weapon(ak47);
+
+        if (IsKeyDown(KEY_M) && !ak47.is_spawning)
+        {
+            ak47.animator.duration = 0.2f;
+            ak47.animator.anim_time = 0.0f;
+            ak47.is_spawning = true;
+        }
+        else if (IsKeyDown(KEY_R) && !ak47.is_reloading)
+        {
+            ak47.animator.duration = 0.5f;
+            ak47.animator.anim_time = 0.0f;
+            ak47.is_reloading = true;
+        }
+
+        if (ak47.is_spawning)
+            spawn_weapon(&ak47);
+
+        if (ak47.is_reloading)
+            reload_weapon(&ak47);
 
         EndDrawing();
     }
