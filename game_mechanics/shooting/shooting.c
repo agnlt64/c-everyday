@@ -5,6 +5,7 @@
 #define HEIGHT 900
 
 #define DEFAULT_AK_VIEWMODEL load_cam((Vector3){-0.9, 1.95, 1.6}, (Vector3){-1, 1.95, -0.2})
+#define ZOOMED_AK_VIEWMODEL (Vector3){0, 2.2, 1}
 
 typedef struct animator {
     float anim_time;
@@ -18,6 +19,9 @@ typedef struct weapon {
     Vector3 scale;
     Vector3 rotation_axis;
     Vector3 fixed_pos;
+
+    int max_ammo;
+    int curr_ammo;
 
     bool is_spawning;
     bool is_reloading;
@@ -36,11 +40,12 @@ Camera load_cam(Vector3 position, Vector3 target)
     return cam;
 }
 
-void draw_floor(Camera cam)
+void draw_floor(Camera cam, Vector3 cube_pos, float cube_size)
 {
     BeginMode3D(cam);
 
     DrawGrid(10, 1.0f);
+    DrawCube(cube_pos, cube_size, cube_size, cube_size, RED);
 
     EndMode3D();
 }
@@ -85,10 +90,55 @@ void reload_weapon(weapon_t* weapon)
         t = 1.0f;
         weapon->is_reloading = false;
         weapon->rotation_axis = Vector3Zero();
+
+        int needed = 30 - weapon->curr_ammo;
+        if (needed > 0)
+        {
+            int to_reload = (weapon->max_ammo >= needed) ? needed : weapon->max_ammo;
+            weapon->curr_ammo += to_reload;
+            weapon->max_ammo -= to_reload;
+        }
     }
     float angle = sinf(t * PI) * 40.0f;
 
     weapon->rotation_axis = (Vector3){0, 0, angle};
+}
+
+void fire_weapon(Camera main_cam, weapon_t* weapon, BoundingBox cube)
+{
+    Ray ray = {
+        .position = main_cam.position,
+        .direction = Vector3Normalize(Vector3Subtract(main_cam.target, main_cam.position)),
+    };
+
+    weapon->curr_ammo = fmax(--weapon->curr_ammo, 0);
+    if (weapon->curr_ammo <= 0 && !weapon->is_reloading && weapon->max_ammo > 0)
+    {
+        weapon->is_reloading = true;
+        weapon->animator.duration = 0.5f;
+        weapon->animator.anim_time = 0.0f;
+    }
+
+    BeginMode3D(main_cam);
+
+    RayCollision hit = GetRayCollisionBox(ray, cube);
+    Color color = BLUE;
+    if (hit.hit)
+        color = BLACK;
+
+    DrawCube(hit.point, 0.1f, 0.1f, 0.1f, color);
+
+    EndMode3D();
+}
+
+void draw_hud(weapon_t weapon)
+{
+    int pad_x = 30;
+    int pad_y = 20;
+    DrawFPS(pad_x, pad_y);
+
+    DrawText(TextFormat("Ammo: %d", weapon.curr_ammo), pad_x, 2 * pad_y, 20, BLACK);
+    DrawText(TextFormat("Max ammo: %d", weapon.max_ammo), pad_x, 3 * pad_y, 20, BLACK);
 }
 
 void free_weapon(weapon_t weapon)
@@ -109,6 +159,23 @@ int main()
     ak47.cam = DEFAULT_AK_VIEWMODEL;
     ak47.rotation_axis = (Vector3){0, 0, 1};
     ak47.fixed_pos = (Vector3){0, 0.7, 0};
+    ak47.curr_ammo = 30;
+    ak47.max_ammo = 90;
+
+    Vector3 cube_pos = Vector3Zero();
+    int cube_size = 2;
+    BoundingBox cube_bbox = {
+        .min = (Vector3){
+            cube_pos.x - cube_size / 2,
+            cube_pos.y - cube_size / 2,
+            cube_pos.z - cube_size / 2,
+        },
+        .max = (Vector3){
+            cube_pos.x + cube_size / 2,
+            cube_pos.y + cube_size / 2,
+            cube_pos.z + cube_size / 2,
+        },
+    };
 
     DisableCursor();
 
@@ -119,7 +186,8 @@ int main()
         BeginDrawing();
         ClearBackground(WHITE);
 
-        draw_floor(main_cam);
+        draw_hud(ak47);
+        draw_floor(main_cam, cube_pos, cube_size);
         draw_weapon(ak47);
 
         if (IsKeyDown(KEY_M) && !ak47.is_spawning)
@@ -128,11 +196,26 @@ int main()
             ak47.animator.anim_time = 0.0f;
             ak47.is_spawning = true;
         }
-        else if (IsKeyDown(KEY_R) && !ak47.is_reloading)
+        else if (IsKeyDown(KEY_R) && !ak47.is_reloading && ak47.curr_ammo != 30)
         {
             ak47.animator.duration = 0.5f;
             ak47.animator.anim_time = 0.0f;
             ak47.is_reloading = true;
+        }
+
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && ak47.curr_ammo > 0)
+            fire_weapon(main_cam, &ak47, cube_bbox);
+
+        if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+        {
+            main_cam.fovy = 50;
+            ak47.cam.position = ZOOMED_AK_VIEWMODEL;
+            ak47.cam.target.x = 0;
+        }
+        else
+        {
+            main_cam.fovy = 60;
+            ak47.cam = DEFAULT_AK_VIEWMODEL;
         }
 
         if (ak47.is_spawning)
