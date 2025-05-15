@@ -8,8 +8,6 @@
 #define DEFAULT_AK_VIEWMODEL load_cam((Vector3){-0.9, 1.95, 1.6}, (Vector3){-1, 1.95, -0.2})
 #define ZOOMED_AK_VIEWMODEL (Vector3){0, 2.2, 1}
 
-bool debug = false;
-
 typedef struct animator {
     float anim_time;
     float duration;
@@ -29,6 +27,8 @@ typedef struct weapon {
     float accuracy;
     float max_spread;
     float last_shot_dt;
+    float vertical_spray;
+    float shoot_timer;
 
     bool is_spawning;
     bool is_reloading;
@@ -81,7 +81,7 @@ void reload_weapon(weapon_t* weapon)
     weapon->rotation_axis = (Vector3){0, 0, angle};
 }
 
-void fire_weapon(Camera main_cam, weapon_t* weapon, BoundingBox cube)
+void fire_weapon(Camera main_cam, weapon_t* weapon, BoundingBox cube, Vector3* bullet_impacts, int* last_idx)
 {
     weapon->accuracy -= 0.05f;
     if (weapon->accuracy < 0.1f) weapon->accuracy = 0.1f;
@@ -89,13 +89,17 @@ void fire_weapon(Camera main_cam, weapon_t* weapon, BoundingBox cube)
     weapon->last_shot_dt = 0.0f;
 
     float spread = (1.0f - weapon->accuracy) * weapon->max_spread;
-    float rand_yaw = ((float)rand() / RAND_MAX - 0.5f) * spread;
-    float rand_pitch = ((float)rand() / RAND_MAX - 0.5f) * spread;
+    weapon->vertical_spray += spread;
+
+    if (weapon->vertical_spray > 0.15f)
+        weapon->vertical_spray = 0.15f;
+
+    float rand_yaw = ((float)rand() / RAND_MAX - 0.5f) * spread * 1.4f;
 
     Vector3 forward = Vector3Normalize(Vector3Subtract(main_cam.target, main_cam.position));
     Matrix yaw_mat = MatrixRotateY(rand_yaw);
-    Matrix pitch_mat = MatrixRotate(Vector3CrossProduct(forward, (Vector3){0,1,0}), rand_pitch);
     Vector3 direction = Vector3Transform(forward, yaw_mat);
+    Matrix pitch_mat = MatrixRotate(Vector3CrossProduct(direction, (Vector3){0,1,0}), weapon->vertical_spray);
     direction = Vector3Transform(direction, pitch_mat);
 
     Ray ray = {
@@ -109,6 +113,7 @@ void fire_weapon(Camera main_cam, weapon_t* weapon, BoundingBox cube)
         weapon->is_reloading = true;
         weapon->animator.duration = 0.5f;
         weapon->animator.anim_time = 0.0f;
+        weapon->vertical_spray = 0.0f;
     }
 
     BeginMode3D(main_cam);
@@ -118,7 +123,8 @@ void fire_weapon(Camera main_cam, weapon_t* weapon, BoundingBox cube)
     if (hit.hit)
         color = BLACK;
 
-    DrawCube(hit.point, 0.1f, 0.1f, 0.1f, color);
+    bullet_impacts[*last_idx] = hit.point;
+    (*last_idx)++;
 
     EndMode3D();
 }
@@ -144,13 +150,6 @@ void draw_weapon(weapon_t weapon)
         center.x, center.y + crosshair_size / 2,
         BLACK
     );
-
-    if (debug)
-    {
-        float spread = (1.0f - weapon.accuracy) * weapon.max_spread;
-        float max_spread = spread * 1000;
-        DrawRectangleLines(center.x - max_spread / 2.0f, center.y - max_spread / 2.0f, max_spread, max_spread, ORANGE);
-    }
 }
 
 void free_weapon(weapon_t weapon)
@@ -172,12 +171,15 @@ Camera load_cam(Vector3 position, Vector3 target)
 }
 
 // GLOBAL DRAWING FUNCTIONS
-void draw_floor(Camera cam, Vector3 cube_pos, float cube_size)
+void draw_floor(Camera cam, Vector3 cube_pos, float cube_size, Vector3* bullet_impacts, int size)
 {
     BeginMode3D(cam);
 
     DrawGrid(10, 1.0f);
     DrawCube(cube_pos, cube_size, cube_size, cube_size, RED);
+
+    for (size_t i = 0; i < size; i++)
+        DrawCube(bullet_impacts[i], 0.1f, 0.1f, 0.1f, BLACK);
 
     EndMode3D();
 }
@@ -204,14 +206,14 @@ void load_ak(weapon_t* ak47)
     ak47->max_ammo = 90;
     ak47->accuracy = 1.0f;
     ak47->max_spread = 0.05f;
+    ak47->vertical_spray = 0.0f;
+    ak47->shoot_timer = 0.0f;
 }
 
-void update_ak(weapon_t* ak47, Camera main_cam, BoundingBox cube_bbox)
+void update_ak(weapon_t* ak47, Camera main_cam, BoundingBox cube_bbox, Vector3* bullet_impacts, int* last_idx)
 {
     ak47->last_shot_dt += GetFrameTime();
-    if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT) && ak47->accuracy < 1.0f && ak47->last_shot_dt > 1.0f)
-        ak47->accuracy = 1.0f;
-
+    
     if (IsKeyDown(KEY_M) && !ak47->is_spawning)
     {
         ak47->animator.duration = 0.2f;
@@ -225,8 +227,26 @@ void update_ak(weapon_t* ak47, Camera main_cam, BoundingBox cube_bbox)
         ak47->is_reloading = true;
     }
 
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && ak47->curr_ammo > 0)
-        fire_weapon(main_cam, ak47, cube_bbox);
+    ak47->shoot_timer += GetFrameTime();
+    float delay = 0.1f;
+
+    if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && ak47->curr_ammo > 0)
+    {
+        float shoot_interval = delay;
+        if (ak47->shoot_timer >= shoot_interval)
+        {
+            fire_weapon(main_cam, ak47, cube_bbox, bullet_impacts, last_idx);
+            ak47->shoot_timer = 0.0f;
+        }
+    }
+
+    if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT))
+    {
+        ak47->vertical_spray = 0.0f;
+        ak47->shoot_timer = ak47->shoot_timer > delay ? delay : ak47->shoot_timer;
+        if (ak47->accuracy < 1.0f && ak47->last_shot_dt > 1.0f)
+            ak47->accuracy = 1.0f;
+    }
 
     if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
     {
@@ -271,6 +291,8 @@ int main()
             cube_pos.z + cube_size / 2,
         },
     };
+    Vector3 bullet_impacts[256] = {0};
+    int last_idx = 0;
 
     DisableCursor();
 
@@ -278,17 +300,14 @@ int main()
     {
         UpdateCamera(&main_cam, CAMERA_FIRST_PERSON);
 
-        if (IsKeyDown(KEY_C))
-            debug = !debug;
-
         BeginDrawing();
         ClearBackground(WHITE);
 
         draw_hud(ak47);
-        draw_floor(main_cam, cube_pos, cube_size);
+        draw_floor(main_cam, cube_pos, cube_size, bullet_impacts, 256);
         draw_weapon(ak47);
 
-        update_ak(&ak47, main_cam, cube_bbox);
+        update_ak(&ak47, main_cam, cube_bbox, bullet_impacts, &last_idx);
 
         EndDrawing();
     }
