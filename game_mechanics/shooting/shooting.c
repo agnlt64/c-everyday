@@ -5,6 +5,9 @@
 #define WIDTH 1600
 #define HEIGHT 900
 
+#define ENTITY_LIMIT 256
+#define NUM_WEAPONS 4
+
 #define DEFAULT_AK_VIEWMODEL load_cam((Vector3){-0.9, 1.95, 1.6}, (Vector3){-1, 1.95, -0.2})
 #define ZOOMED_AK_VIEWMODEL (Vector3){0, 2.2, 1}
 
@@ -12,6 +15,10 @@ typedef struct animator {
     float anim_time;
     float duration;
 } animator_t;
+
+typedef enum {
+    AK47,
+} weapon_type;
 
 typedef struct weapon {
     Model model;
@@ -34,6 +41,43 @@ typedef struct weapon {
     bool is_reloading;
     animator_t animator;
 } weapon_t;
+
+typedef struct cube {
+    Vector3 pos;
+    BoundingBox box;
+    float size;
+    Color color;
+} cube_t;
+
+typedef struct game_context {
+    cube_t cubes[ENTITY_LIMIT];
+    cube_t bullet_impacts[ENTITY_LIMIT];
+
+    weapon_type weapon_type;
+    weapon_t weapons[NUM_WEAPONS];
+    int weapon_idx;
+    int last_impact_idx;
+
+    Camera cam;
+} game_context;
+
+// CUBE FUNCTIONS
+BoundingBox cube_bbox(cube_t cube)
+{
+    return (BoundingBox){
+        .min = (Vector3){
+            cube.pos.x - cube.size / 2,
+            cube.pos.y - cube.size / 2,
+            cube.pos.z - cube.size / 2,
+        },
+        .max = (Vector3){
+            cube.pos.x + cube.size / 2,
+            cube.pos.y + cube.size / 2,
+            cube.pos.z + cube.size / 2,
+        },
+    };
+}
+// END CUBE FUNCTIONS
 
 // WEAPON FUNCTIONS
 void scale_weapon(weapon_t* weapon, float scale)
@@ -81,7 +125,7 @@ void reload_weapon(weapon_t* weapon)
     weapon->rotation_axis = (Vector3){0, 0, angle};
 }
 
-void fire_weapon(Camera main_cam, weapon_t* weapon, BoundingBox cube, Vector3* bullet_impacts, int* last_idx)
+void fire_weapon(game_context* gc, weapon_t* weapon)
 {
     weapon->accuracy -= 0.05f;
     if (weapon->accuracy < 0.1f) weapon->accuracy = 0.1f;
@@ -96,14 +140,14 @@ void fire_weapon(Camera main_cam, weapon_t* weapon, BoundingBox cube, Vector3* b
 
     float rand_yaw = ((float)rand() / RAND_MAX - 0.5f) * spread * 1.4f;
 
-    Vector3 forward = Vector3Normalize(Vector3Subtract(main_cam.target, main_cam.position));
+    Vector3 forward = Vector3Normalize(Vector3Subtract(gc->cam.target, gc->cam.position));
     Matrix yaw_mat = MatrixRotateY(rand_yaw);
     Vector3 direction = Vector3Transform(forward, yaw_mat);
     Matrix pitch_mat = MatrixRotate(Vector3CrossProduct(direction, (Vector3){0,1,0}), weapon->vertical_spray);
     direction = Vector3Transform(direction, pitch_mat);
 
     Ray ray = {
-        .position = main_cam.position,
+        .position = gc->cam.position,
         .direction = direction,
     };
 
@@ -116,40 +160,23 @@ void fire_weapon(Camera main_cam, weapon_t* weapon, BoundingBox cube, Vector3* b
         weapon->vertical_spray = 0.0f;
     }
 
-    BeginMode3D(main_cam);
+    for (size_t i = 0; i < ENTITY_LIMIT; i++)
+    {
+        cube_t cube = gc->cubes[i];
+        RayCollision hit = GetRayCollisionBox(ray, cube.box);
 
-    RayCollision hit = GetRayCollisionBox(ray, cube);
-    Color color = BLUE;
-    if (hit.hit)
-        color = BLACK;
-
-    bullet_impacts[*last_idx] = hit.point;
-    (*last_idx)++;
-
-    EndMode3D();
-}
-
-void draw_weapon(weapon_t weapon)
-{
-    BeginMode3D(weapon.cam);
-
-    DrawModelEx(weapon.model, weapon.fixed_pos, weapon.rotation_axis, -weapon.rotation_axis.z, weapon.scale, WHITE);
-
-    EndMode3D();
-
-    int crosshair_size = 10;
-    Vector2 center = { WIDTH / 2.0f, HEIGHT / 2.0f };
-
-    DrawLine(
-        center.x - crosshair_size / 2, center.y,
-        center.x + crosshair_size / 2, center.y,
-        BLACK
-    );
-    DrawLine(
-        center.x, center.y - crosshair_size / 2,
-        center.x, center.y + crosshair_size / 2,
-        BLACK
-    );
+        if (hit.hit) 
+        {
+            cube_t impact = {0};
+            impact.size = 0.1f;
+            impact.pos = hit.point;
+            impact.color = BLACK;
+    
+            gc->bullet_impacts[gc->last_impact_idx] = impact;
+            gc->last_impact_idx = (gc->last_impact_idx + 1) % ENTITY_LIMIT;
+            break;
+        }
+    }
 }
 
 void free_weapon(weapon_t weapon)
@@ -171,19 +198,6 @@ Camera load_cam(Vector3 position, Vector3 target)
 }
 
 // GLOBAL DRAWING FUNCTIONS
-void draw_floor(Camera cam, Vector3 cube_pos, float cube_size, Vector3* bullet_impacts, int size)
-{
-    BeginMode3D(cam);
-
-    DrawGrid(10, 1.0f);
-    DrawCube(cube_pos, cube_size, cube_size, cube_size, RED);
-
-    for (size_t i = 0; i < size; i++)
-        DrawCube(bullet_impacts[i], 0.1f, 0.1f, 0.1f, BLACK);
-
-    EndMode3D();
-}
-
 void draw_hud(weapon_t weapon)
 {
     int pad_x = 30;
@@ -192,6 +206,23 @@ void draw_hud(weapon_t weapon)
 
     DrawText(TextFormat("Ammo: %d", weapon.curr_ammo), pad_x, 2 * pad_y, 20, BLACK);
     DrawText(TextFormat("Max ammo: %d", weapon.max_ammo), pad_x, 3 * pad_y, 20, BLACK);
+}
+
+void draw_crosshair()
+{
+    int crosshair_size = 10;
+    Vector2 center = { WIDTH / 2.0f, HEIGHT / 2.0f };
+
+    DrawLine(
+        center.x - crosshair_size / 2, center.y,
+        center.x + crosshair_size / 2, center.y,
+        BLACK
+    );
+    DrawLine(
+        center.x, center.y - crosshair_size / 2,
+        center.x, center.y + crosshair_size / 2,
+        BLACK
+    );
 }
 // END GLOBAL DRAWING FUNCTIONS
 
@@ -210,8 +241,9 @@ void load_ak(weapon_t* ak47)
     ak47->shoot_timer = 0.0f;
 }
 
-void update_ak(weapon_t* ak47, Camera main_cam, BoundingBox cube_bbox, Vector3* bullet_impacts, int* last_idx)
+void update_ak(game_context* gc)
 {
+    weapon_t* ak47 = &gc->weapons[gc->weapon_idx];
     ak47->last_shot_dt += GetFrameTime();
     
     if (IsKeyDown(KEY_M) && !ak47->is_spawning)
@@ -235,7 +267,7 @@ void update_ak(weapon_t* ak47, Camera main_cam, BoundingBox cube_bbox, Vector3* 
         float shoot_interval = delay;
         if (ak47->shoot_timer >= shoot_interval)
         {
-            fire_weapon(main_cam, ak47, cube_bbox, bullet_impacts, last_idx);
+            fire_weapon(gc, ak47);
             ak47->shoot_timer = 0.0f;
         }
     }
@@ -250,13 +282,13 @@ void update_ak(weapon_t* ak47, Camera main_cam, BoundingBox cube_bbox, Vector3* 
 
     if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
     {
-        main_cam.fovy = 50;
+        gc->cam.fovy = 50;
         ak47->cam.position = ZOOMED_AK_VIEWMODEL;
         ak47->cam.target.x = 0;
     }
     else
     {
-        main_cam.fovy = 60;
+        gc->cam.fovy = 60;
         ak47->cam = DEFAULT_AK_VIEWMODEL;
     }
 
@@ -267,52 +299,99 @@ void update_ak(weapon_t* ak47, Camera main_cam, BoundingBox cube_bbox, Vector3* 
         reload_weapon(ak47);
 }
 
-int main()
+void load_game(game_context* gc)
 {
-    InitWindow(WIDTH, HEIGHT, "FPS weapon view");
-    SetTargetFPS(60);
-    
-    Camera main_cam = load_cam((Vector3){0, 2, 4}, (Vector3){0, 2, 3});
+    gc->cam = load_cam((Vector3){0, 2, 4}, (Vector3){0, 2, 3});
+    cube_t cube = {0};
+    cube.pos = Vector3Zero();
+    cube.size = 2;
+    cube.color = RED;
+    cube.box = cube_bbox(cube);
+    gc->cubes[0] = cube;
 
     weapon_t ak47 = {0};
     load_ak(&ak47);
+    gc->weapon_idx = 0;
+    gc->weapons[0] = ak47;
+    gc->last_impact_idx = 0;
+}
 
-    Vector3 cube_pos = Vector3Zero();
-    int cube_size = 2;
-    BoundingBox cube_bbox = {
-        .min = (Vector3){
-            cube_pos.x - cube_size / 2,
-            cube_pos.y - cube_size / 2,
-            cube_pos.z - cube_size / 2,
-        },
-        .max = (Vector3){
-            cube_pos.x + cube_size / 2,
-            cube_pos.y + cube_size / 2,
-            cube_pos.z + cube_size / 2,
-        },
-    };
-    Vector3 bullet_impacts[256] = {0};
-    int last_idx = 0;
+void draw_game(game_context gc)
+{
+    weapon_t weapon = gc.weapons[gc.weapon_idx];
+
+    BeginMode3D(gc.cam);
+
+    // floor
+    DrawGrid(10, 1.0f);
+
+    // cubes & bullet impacts
+    for (size_t i = 0; i < ENTITY_LIMIT; i++)
+    {
+        cube_t cube = gc.cubes[i];
+        DrawCube(cube.pos, cube.size, cube.size, cube.size, cube.color);
+
+        cube_t impact = gc.bullet_impacts[i];
+        if (impact.size > 0.0f)
+            DrawCube(impact.pos, impact.size, impact.size, impact.size, impact.color);
+
+    }
+
+    EndMode3D();
+
+    BeginMode3D(weapon.cam);
+
+    // current weapon
+    DrawModelEx(weapon.model, weapon.fixed_pos, weapon.rotation_axis, -weapon.rotation_axis.z, weapon.scale, WHITE);
+
+    EndMode3D();
+
+    draw_crosshair();
+    draw_hud(weapon);
+}
+
+void update_game(game_context* gc)
+{
+    UpdateCamera(&(gc->cam), CAMERA_FIRST_PERSON);
+
+    switch (gc->weapon_type)
+    {
+    case AK47:
+        update_ak(gc);
+    default:
+        break;
+    }
+}
+
+void free_game(game_context gc)
+{
+    for (size_t i = 0; i < NUM_WEAPONS; i++)
+        free_weapon(gc.weapons[i]);
+}
+
+int main()
+{
+    InitWindow(WIDTH, HEIGHT, "Strike Counter");
+    SetTargetFPS(60);
+
+    game_context gc = {0};
+    load_game(&gc);
 
     DisableCursor();
 
     while (!WindowShouldClose())
     {
-        UpdateCamera(&main_cam, CAMERA_FIRST_PERSON);
+        update_game(&gc);
 
         BeginDrawing();
+
         ClearBackground(WHITE);
-
-        draw_hud(ak47);
-        draw_floor(main_cam, cube_pos, cube_size, bullet_impacts, 256);
-        draw_weapon(ak47);
-
-        update_ak(&ak47, main_cam, cube_bbox, bullet_impacts, &last_idx);
+        draw_game(gc);
 
         EndDrawing();
     }
 
-    free_weapon(ak47);
+    free_game(gc);
     CloseWindow();
 
     return 0;
