@@ -13,3 +13,5 @@ lib/
 
 # me doing tests with shaders
 shaders/
+
+.DS_Store
