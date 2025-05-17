@@ -1,6 +1,7 @@
 #include "../include/raylib.h"
 #include "../include/raymath.h"
 #include <stdlib.h>
+#include <time.h>
 
 #define WIDTH 1600
 #define HEIGHT 900
@@ -11,12 +12,17 @@
 #define DEFAULT_AK_VIEWMODEL load_cam((Vector3){-0.9, 1.95, 1.6}, (Vector3){-1, 1.95, -0.2})
 #define ZOOMED_AK_VIEWMODEL (Vector3){0, 2.2, 1}
 
+#define WEAPON_SPAWN_DURATION 0.2f
+
+#define DEFAULT_DEAGLE_VIEWMODEL load_cam((Vector3){-2, 1.5, -1.1}, (Vector3){-1, 1.5, -1.1})
+
 typedef struct animator {
     float anim_time;
     float duration;
 } animator_t;
 
 typedef enum {
+    DEAGLE,
     AK47,
 } weapon_type;
 
@@ -39,6 +45,7 @@ typedef struct weapon {
 
     bool is_spawning;
     bool is_reloading;
+    bool is_shooting;
     animator_t animator;
 } weapon_t;
 
@@ -53,13 +60,17 @@ typedef struct game_context {
     cube_t cubes[ENTITY_LIMIT];
     cube_t bullet_impacts[ENTITY_LIMIT];
 
-    weapon_type weapon_type;
-    weapon_t weapons[NUM_WEAPONS];
     int weapon_idx;
+    weapon_t weapons[NUM_WEAPONS];
     int last_impact_idx;
 
     Camera cam;
 } game_context;
+
+float get_rand_float()
+{
+    return (float)rand() / RAND_MAX;
+}
 
 // CUBE FUNCTIONS
 BoundingBox cube_bbox(cube_t cube)
@@ -138,7 +149,7 @@ void fire_weapon(game_context* gc, weapon_t* weapon)
     if (weapon->vertical_spray > 0.15f)
         weapon->vertical_spray = 0.15f;
 
-    float rand_yaw = ((float)rand() / RAND_MAX - 0.5f) * spread * 1.4f;
+    float rand_yaw = (get_rand_float() - 0.5f) * spread * 1.4f;
 
     Vector3 forward = Vector3Normalize(Vector3Subtract(gc->cam.target, gc->cam.position));
     Matrix yaw_mat = MatrixRotateY(rand_yaw);
@@ -243,16 +254,10 @@ void load_ak(weapon_t* ak47)
 
 void update_ak(game_context* gc)
 {
-    weapon_t* ak47 = &gc->weapons[gc->weapon_idx];
+    weapon_t* ak47 = &gc->weapons[AK47];
     ak47->last_shot_dt += GetFrameTime();
     
-    if (IsKeyDown(KEY_M) && !ak47->is_spawning)
-    {
-        ak47->animator.duration = 0.2f;
-        ak47->animator.anim_time = 0.0f;
-        ak47->is_spawning = true;
-    }
-    else if (IsKeyDown(KEY_R) && !ak47->is_reloading && ak47->curr_ammo != 30)
+    if (IsKeyDown(KEY_R) && !ak47->is_reloading && ak47->curr_ammo != 30)
     {
         ak47->animator.duration = 0.5f;
         ak47->animator.anim_time = 0.0f;
@@ -267,6 +272,7 @@ void update_ak(game_context* gc)
         float shoot_interval = delay;
         if (ak47->shoot_timer >= shoot_interval)
         {
+            ak47->is_shooting = !ak47->is_reloading;
             fire_weapon(gc, ak47);
             ak47->shoot_timer = 0.0f;
         }
@@ -274,6 +280,7 @@ void update_ak(game_context* gc)
 
     if (!IsMouseButtonDown(MOUSE_BUTTON_LEFT))
     {
+        ak47->is_shooting = false;
         ak47->vertical_spray = 0.0f;
         ak47->shoot_timer = ak47->shoot_timer > delay ? delay : ak47->shoot_timer;
         if (ak47->accuracy < 1.0f && ak47->last_shot_dt > 1.0f)
@@ -299,8 +306,26 @@ void update_ak(game_context* gc)
         reload_weapon(ak47);
 }
 
+void load_deagle(weapon_t* deagle)
+{
+    deagle->model = LoadModel("./assets/deagle.glb");
+    scale_weapon(deagle, 4);
+    deagle->cam = DEFAULT_DEAGLE_VIEWMODEL;
+    deagle->rotation_axis = Vector3Zero();
+    deagle->fixed_pos = (Vector3){0, 0.7, 0};
+    deagle->curr_ammo = 20;
+    deagle->max_ammo = 100;
+
+    deagle->accuracy = 1.0f;
+    deagle->max_spread = 0.05f;
+    deagle->vertical_spray = 0.0f;
+    deagle->shoot_timer = 0.0f;
+}
+
 void load_game(game_context* gc)
 {
+    srand(time(NULL));
+
     gc->cam = load_cam((Vector3){0, 2, 4}, (Vector3){0, 2, 3});
     cube_t cube = {0};
     cube.pos = Vector3Zero();
@@ -311,9 +336,14 @@ void load_game(game_context* gc)
 
     weapon_t ak47 = {0};
     load_ak(&ak47);
-    gc->weapon_idx = 0;
-    gc->weapons[0] = ak47;
+    gc->weapons[AK47] = ak47;
+
+    weapon_t deagle = {0};
+    load_deagle(&deagle);
+    gc->weapons[DEAGLE] = deagle;
+
     gc->last_impact_idx = 0;
+    gc->weapon_idx = DEAGLE;
 }
 
 void draw_game(game_context gc)
@@ -334,7 +364,6 @@ void draw_game(game_context gc)
         cube_t impact = gc.bullet_impacts[i];
         if (impact.size > 0.0f)
             DrawCube(impact.pos, impact.size, impact.size, impact.size, impact.color);
-
     }
 
     EndMode3D();
@@ -343,6 +372,18 @@ void draw_game(game_context gc)
 
     // current weapon
     DrawModelEx(weapon.model, weapon.fixed_pos, weapon.rotation_axis, -weapon.rotation_axis.z, weapon.scale, WHITE);
+
+    if (weapon.is_shooting && weapon.curr_ammo > 0)
+    {
+        Vector3 ray_start = {0, 1.45, -1.5};
+        Vector3 ray_dir = Vector3Normalize(Vector3Subtract(weapon.cam.target, ray_start));
+        float radius = Clamp(get_rand_float() * 0.5f, 0.1f, 0.3f);
+        float ray_len = get_rand_float() * 1.7f;
+        Vector3 ray_end = Vector3Add(ray_start, Vector3Scale(ray_dir, ray_len));
+
+        DrawSphere(ray_start, radius, ColorAlpha(YELLOW, 0.7));
+        DrawLine3D(ray_start, ray_end, ColorAlpha(YELLOW, 0.9));
+    }
 
     EndMode3D();
 
@@ -354,10 +395,23 @@ void update_game(game_context* gc)
 {
     UpdateCamera(&(gc->cam), CAMERA_FIRST_PERSON);
 
-    switch (gc->weapon_type)
+    if (IsKeyDown(KEY_ONE) && gc->weapon_idx != DEAGLE)
+    {
+        gc->weapon_idx = DEAGLE;
+    }
+    else if (IsKeyDown(KEY_TWO) && gc->weapon_idx != AK47)
+    {
+        gc->weapon_idx = AK47;
+        gc->weapons[AK47].is_spawning = true;
+        gc->weapons[AK47].animator.duration = WEAPON_SPAWN_DURATION;
+        gc->weapons[AK47].animator.anim_time = 0.0f;
+    }
+
+    switch (gc->weapon_idx)
     {
     case AK47:
         update_ak(gc);
+        break;
     default:
         break;
     }
