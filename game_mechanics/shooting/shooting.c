@@ -38,6 +38,7 @@ typedef struct weapon {
     int max_ammo;
     int curr_ammo;
     int mag_capacity;
+    float damage;
 
     float accuracy;
     float max_spread;
@@ -58,6 +59,8 @@ typedef struct cube {
     BoundingBox box;
     float size;
     Color color;
+    float speed;
+    float hp;
 } cube_t;
 
 typedef struct game_context {
@@ -183,6 +186,8 @@ void fire_weapon(game_context* gc, weapon_t* weapon)
 
         if (hit.hit) 
         {
+            gc->cubes[i].hp -= weapon->damage;
+
             cube_t impact = {0};
             impact.size = 0.1f;
             impact.pos = hit.point;
@@ -252,6 +257,7 @@ void load_ak(weapon_t* ak47)
     ak47->mag_capacity = 30;
     ak47->curr_ammo = ak47->mag_capacity;
     ak47->max_ammo = 90;
+    ak47->damage = 30;
 
     ak47->accuracy = 1.0f;
     ak47->max_spread = 0.05f;
@@ -271,6 +277,7 @@ void load_deagle(weapon_t* deagle)
     deagle->mag_capacity = 20;
     deagle->curr_ammo = deagle->mag_capacity;
     deagle->max_ammo = 100;
+    deagle->damage = 20;
 
     deagle->accuracy = 1.0f;
     deagle->max_spread = 0.001f;
@@ -342,12 +349,18 @@ void load_game(game_context* gc)
     srand(time(NULL));
 
     gc->cam = load_cam((Vector3){0, 2, 4}, (Vector3){0, 2, 3});
-    cube_t cube = {0};
-    cube.pos = Vector3Zero();
-    cube.size = 2;
-    cube.color = RED;
-    cube.box = cube_bbox(cube);
-    gc->cubes[0] = cube;
+    
+    for (size_t i = 0; i < 10; i++)
+    {
+        cube_t cube = {0};
+        cube.pos = (Vector3){i + 2 * get_rand_float(), get_rand_float(), get_rand_float() * 4};
+        cube.size = 0.5;
+        cube.color = BLUE;
+        cube.speed = 0.1f;
+        cube.hp = 100;
+        cube.box = cube_bbox(cube);
+        gc->cubes[i] = cube;
+    }
 
     weapon_t ak47 = {0};
     load_ak(&ak47);
@@ -374,7 +387,12 @@ void draw_game(game_context gc)
     for (size_t i = 0; i < ENTITY_LIMIT; i++)
     {
         cube_t cube = gc.cubes[i];
-        DrawCube(cube.pos, cube.size, cube.size, cube.size, cube.color);
+        if (cube.hp <= 100 && cube.hp >= 50)
+            DrawCube(cube.pos, cube.size, cube.size, cube.size, cube.color);
+        else if (cube.hp < 50 && cube.hp >= 20)
+            DrawCube(cube.pos, cube.size, cube.size, cube.size, YELLOW);
+        else if (cube.hp < 20 && cube.hp > 0)
+            DrawCube(cube.pos, cube.size, cube.size, cube.size, RED);
 
         cube_t impact = gc.bullet_impacts[i];
         if (impact.size > 0.0f)
@@ -434,16 +452,14 @@ void update_game(game_context* gc)
         gc->weapons[AK47].animator.anim_time = 0.0f;
     }
 
-    update_weapon(gc);
+    for (size_t i = 0; i < 10; i++)
+    {
+        gc->cubes[i].pos.x += gc->cubes[i].speed;
+        if (gc->cubes[i].pos.x > 10 || gc->cubes[i].pos.x < -6)
+            gc->cubes[i].speed *= -1;
+    }
 
-    // switch (gc->weapon_idx)
-    // {
-    // case AK47:
-    //     update_ak(gc);
-    //     break;
-    // default:
-    //     break;
-    // }
+    update_weapon(gc);
 }
 
 void free_game(game_context gc)
