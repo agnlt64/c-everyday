@@ -182,7 +182,7 @@ void fire_weapon(game_context* gc, weapon_t* weapon)
     for (size_t i = 0; i < ENTITY_LIMIT; i++)
     {
         cube_t cube = gc->cubes[i];
-        RayCollision hit = GetRayCollisionBox(ray, cube.box);
+        RayCollision hit = GetRayCollisionBox(ray, cube_bbox(cube));
 
         if (hit.hit) 
         {
@@ -276,8 +276,8 @@ void load_deagle(weapon_t* deagle)
     deagle->fixed_pos = (Vector3){0, 0.7, 0};
     deagle->mag_capacity = 20;
     deagle->curr_ammo = deagle->mag_capacity;
-    deagle->max_ammo = 100;
-    deagle->damage = 20;
+    deagle->max_ammo = 35;
+    deagle->damage = 7;
 
     deagle->accuracy = 1.0f;
     deagle->max_spread = 0.001f;
