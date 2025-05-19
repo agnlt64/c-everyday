@@ -274,10 +274,10 @@ void load_deagle(weapon_t* deagle)
     deagle->cam = DEFAULT_DEAGLE_VIEWMODEL;
     deagle->rotation_axis = Vector3Zero();
     deagle->fixed_pos = (Vector3){0, 0.7, 0};
-    deagle->mag_capacity = 20;
+    deagle->mag_capacity = 7;
     deagle->curr_ammo = deagle->mag_capacity;
     deagle->max_ammo = 35;
-    deagle->damage = 7;
+    deagle->damage = 20;
 
     deagle->accuracy = 1.0f;
     deagle->max_spread = 0.001f;
