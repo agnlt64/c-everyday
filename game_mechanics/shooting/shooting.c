@@ -64,6 +64,9 @@ typedef struct cube {
 } cube_t;
 
 typedef struct game_context {
+    Model map;
+    float player_speed;
+
     cube_t cubes[ENTITY_LIMIT];
     cube_t bullet_impacts[ENTITY_LIMIT];
 
@@ -348,7 +351,9 @@ void load_game(game_context* gc)
 {
     srand(time(NULL));
 
-    gc->cam = load_cam((Vector3){0, 2, 4}, (Vector3){0, 2, 3});
+    gc->cam = load_cam((Vector3){0, 8, 4}, (Vector3){0, 2, 3});
+    gc->map = LoadModel("./assets/map.glb");
+    gc->player_speed = 1.0f;
     
     for (size_t i = 0; i < 10; i++)
     {
@@ -381,7 +386,7 @@ void draw_game(game_context gc)
     BeginMode3D(gc.cam);
 
     // floor
-    DrawGrid(10, 1.0f);
+    DrawModel(gc.map, Vector3Zero(), 10, WHITE);
 
     // cubes & bullet impacts
     for (size_t i = 0; i < ENTITY_LIMIT; i++)
@@ -433,9 +438,47 @@ void draw_game(game_context gc)
     draw_hud(weapon);
 }
 
+void update_player(game_context* gc)
+{
+    Vector2 mouse_delta = GetMouseDelta();
+    static float yaw = 0.0f;
+    static float pitch = 0.0f;
+    float sensityvity = 0.003f;
+
+    yaw -= mouse_delta.x * sensityvity;
+    pitch += mouse_delta.y * sensityvity;
+
+    if (pitch > PI/2.0f) pitch = PI/2.0f;
+    if (pitch < -PI/2.0f) pitch = -PI/2.0f;
+
+    Vector3 forward = {
+        cosf(pitch) * sinf(yaw),
+        -sinf(pitch),
+        cosf(pitch) * cosf(yaw)
+    };
+
+    Vector3 move_forward = Vector3Normalize((Vector3){forward.x, 0, forward.z});
+    Vector3 move_right = Vector3Normalize(Vector3CrossProduct((Vector3){0, 1, 0}, move_forward));
+
+    Vector3 vec_fwd = Vector3Scale(move_forward, gc->player_speed);
+    Vector3 vec_right = Vector3Scale(move_right, gc->player_speed);
+
+    if (IsKeyDown(KEY_W))
+        gc->cam.position = Vector3Add(gc->cam.position, vec_fwd);
+    if (IsKeyDown(KEY_S))
+        gc->cam.position = Vector3Subtract(gc->cam.position, vec_fwd);
+    if (IsKeyDown(KEY_A))
+        gc->cam.position = Vector3Add(gc->cam.position, vec_right);
+    if (IsKeyDown(KEY_D))
+        gc->cam.position = Vector3Subtract(gc->cam.position, vec_right);
+
+    gc->cam.target = Vector3Add(gc->cam.position, forward);
+}
+
 void update_game(game_context* gc)
 {
-    UpdateCamera(&(gc->cam), CAMERA_FIRST_PERSON);
+    // UpdateCamera(&(gc->cam), CAMERA_FIRST_PERSON);
+    update_player(gc);
 
     if (IsKeyDown(KEY_ONE) && gc->weapon_idx != DEAGLE)
     {
@@ -464,6 +507,7 @@ void update_game(game_context* gc)
 
 void free_game(game_context gc)
 {
+    UnloadModel(gc.map);
     for (size_t i = 0; i < NUM_WEAPONS; i++)
         free_weapon(gc.weapons[i]);
 }
