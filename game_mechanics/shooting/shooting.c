@@ -1,8 +1,11 @@
 #include "../include/raylib.h"
 #include "../include/raymath.h"
+#define RAYGUI_IMPLEMENTATION
+#include "../include/raygui.h"
 #include <stdlib.h>
 #include <time.h>
 #include <stdio.h>
+#include <string.h>
 
 #define WIDTH 1600
 #define HEIGHT 900
@@ -40,6 +43,8 @@ typedef struct weapon {
     int mag_capacity;
     float damage;
 
+    char tag[128];
+
     float accuracy;
     float max_spread;
     float last_shot_dt;
@@ -69,6 +74,10 @@ typedef struct game_context {
 
     cube_t cubes[ENTITY_LIMIT];
     cube_t bullet_impacts[ENTITY_LIMIT];
+
+    bool paused_this_frame;
+    bool paused;
+    bool running;
 
     int weapon_idx;
     weapon_t weapons[NUM_WEAPONS];
@@ -261,6 +270,7 @@ void load_ak(weapon_t* ak47)
     ak47->curr_ammo = ak47->mag_capacity;
     ak47->max_ammo = 90;
     ak47->damage = 30;
+    strcpy(ak47->tag, "AK47");
 
     ak47->accuracy = 1.0f;
     ak47->max_spread = 0.05f;
@@ -281,6 +291,7 @@ void load_deagle(weapon_t* deagle)
     deagle->curr_ammo = deagle->mag_capacity;
     deagle->max_ammo = 35;
     deagle->damage = 20;
+    strcpy(deagle->tag, "Desert Eagle");
 
     deagle->accuracy = 1.0f;
     deagle->max_spread = 0.001f;
@@ -349,11 +360,14 @@ void update_weapon(game_context* gc)
 
 void load_game(game_context* gc)
 {
+    SetExitKey(KEY_X); // debug only
     srand(time(NULL));
 
     gc->cam = load_cam((Vector3){0, 8, 4}, (Vector3){0, 2, 3});
-    gc->map = LoadModel("./assets/map.glb");
+    // gc->map = LoadModel("./assets/map.glb");
     gc->player_speed = 1.0f;
+    gc->paused = false;
+    gc->running = true;
     
     for (size_t i = 0; i < 10; i++)
     {
@@ -385,8 +399,7 @@ void draw_game(game_context gc)
 
     BeginMode3D(gc.cam);
 
-    // floor
-    DrawModel(gc.map, Vector3Zero(), 10, WHITE);
+    // DrawModel(gc.map, Vector3Zero(), 10, WHITE);
 
     // cubes & bullet impacts
     for (size_t i = 0; i < ENTITY_LIMIT; i++)
@@ -434,8 +447,11 @@ void draw_game(game_context gc)
 
     EndMode3D();
 
-    draw_crosshair();
-    draw_hud(weapon);
+    if (!gc.paused)
+    {   
+        draw_crosshair();
+        draw_hud(weapon);
+    }
 }
 
 void update_player(game_context* gc)
@@ -477,32 +493,76 @@ void update_player(game_context* gc)
 
 void update_game(game_context* gc)
 {
-    // UpdateCamera(&(gc->cam), CAMERA_FIRST_PERSON);
-    update_player(gc);
-
-    if (IsKeyDown(KEY_ONE) && gc->weapon_idx != DEAGLE)
+    gc->running = !WindowShouldClose();
+    if (IsKeyPressed(KEY_ESCAPE))
     {
-        gc->weapon_idx = DEAGLE;
-        // gc->weapons[DEAGLE].is_spawning = true;
-        // gc->weapons[DEAGLE].animator.duration = WEAPON_SPAWN_DURATION;
-        // gc->weapons[DEAGLE].animator.anim_time = 0.0f;
-    }
-    else if (IsKeyDown(KEY_TWO) && gc->weapon_idx != AK47)
-    {
-        gc->weapon_idx = AK47;
-        gc->weapons[AK47].is_spawning = true;
-        gc->weapons[AK47].animator.duration = WEAPON_SPAWN_DURATION;
-        gc->weapons[AK47].animator.anim_time = 0.0f;
+        gc->paused = !gc->paused;
+        gc->paused_this_frame = !gc->paused_this_frame;
     }
 
-    for (size_t i = 0; i < 10; i++)
+    if (!gc->paused)
     {
-        gc->cubes[i].pos.x += gc->cubes[i].speed;
-        if (gc->cubes[i].pos.x > 10 || gc->cubes[i].pos.x < -6)
-            gc->cubes[i].speed *= -1;
-    }
+        update_player(gc);
+    
+        if (IsKeyDown(KEY_ONE) && gc->weapon_idx != DEAGLE)
+        {
+            gc->weapon_idx = DEAGLE;
+            // gc->weapons[DEAGLE].is_spawning = true;
+            // gc->weapons[DEAGLE].animator.duration = WEAPON_SPAWN_DURATION;
+            // gc->weapons[DEAGLE].animator.anim_time = 0.0f;
+        }
+        else if (IsKeyDown(KEY_TWO) && gc->weapon_idx != AK47)
+        {
+            gc->weapon_idx = AK47;
+            gc->weapons[AK47].is_spawning = true;
+            gc->weapons[AK47].animator.duration = WEAPON_SPAWN_DURATION;
+            gc->weapons[AK47].animator.anim_time = 0.0f;
+        }
 
-    update_weapon(gc);
+        for (size_t i = 0; i < 10; i++)
+        {
+            gc->cubes[i].pos.x += gc->cubes[i].speed;
+            if (gc->cubes[i].pos.x > 10 || gc->cubes[i].pos.x < -6)
+                gc->cubes[i].speed *= -1;
+        }
+    
+        update_weapon(gc);
+    }
+    else
+    {
+        if (gc->paused_this_frame)
+        {
+            EnableCursor();
+            gc->paused_this_frame = false;
+        }
+        int pad = 20;
+        int font_size = 40;
+        Rectangle menu = {
+            pad, pad,
+            WIDTH - pad * 2,
+            HEIGHT - pad * 2
+        };
+        DrawRectangleRounded(menu, 0.02, 20, ColorAlpha(BLACK, 0.7));
+        DrawText("Game is paused", pad * 2, 2 * pad, font_size, WHITE);
+
+        // show some stats
+        int stat_font_size = 30;
+        // ugly loop but it works for now
+        for (size_t i = 0; i < 2; i++)
+        {
+            weapon_t w = gc->weapons[i];
+            DrawText(TextFormat("%s: %d bullets", w.tag, w.max_ammo + w.curr_ammo), 2 * pad, 2 * (i + 2) * pad, stat_font_size, WHITE);
+        }
+
+        // handle exit
+        Rectangle exit_rec = {
+            2 * pad,
+            HEIGHT - 4 * pad,
+            150, 40
+        };
+        if (GuiButton(exit_rec, "Exit Game"))
+            gc->running = false;
+    }
 }
 
 void free_game(game_context gc)
@@ -522,7 +582,7 @@ int main()
 
     DisableCursor();
 
-    while (!WindowShouldClose())
+    while (gc.running)
     {
         update_game(&gc);
 
