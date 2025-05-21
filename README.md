@@ -1,6 +1,9 @@
 # C everyday
 
-Programming in C every day on [Youtube](https://www.youtube.com/@agnlt) every day of my life until I get a girlfriend.  
+Programming in C every day on [Youtube](https://www.youtube.com/@agnlt) every day of my life until I get a girlfriend.
+
+# Actually, it's over
+For several reasons, I can't keep on doing this everyday. So I'm stopping this now, before I get completely borded out of it. It was fun while it lasted! But now it's time to focus on something else. I won't make this repo an archive, because maybe one day I'll get back to it.
 
 # Build
 Each algorithm has its own folder. When you build the code, an executable will be created in each algorithm folder. To build everything at once, just run
